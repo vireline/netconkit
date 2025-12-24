@@ -50,10 +50,22 @@ def arp_neighbors_best_effort() -> list[dict]:
     system = platform.system().lower()
     neighbors = []
     try:
-        if system in ("linux", "darwin"):
+        if system == "linux":
+            # Prefer `ip neigh` on Linux (more reliable than `arp -a`)
+            out = subprocess.check_output(["ip", "neigh"], text=True, errors="ignore")
+            for line in out.splitlines():
+                # e.g. "10.0.0.1 dev wlan0 lladdr aa:bb:cc:dd:ee:ff REACHABLE"
+                parts = line.split()
+                if not parts:
+                    continue
+                ip = parts[0]
+                mac = None
+                if "lladdr" in parts:
+                    mac = parts[parts.index("lladdr")+1]
+                neighbors.append({"ip": ip, "mac": mac})
+        elif system == "darwin":
             out = subprocess.check_output(["arp", "-a"], text=True, errors="ignore")
             for line in out.splitlines():
-                # varies by OS; keep simple
                 if "(" in line and ")" in line:
                     ip = line.split("(", 1)[1].split(")", 1)[0]
                     mac = None
